@@ -50,8 +50,7 @@ async def reaction(item: ReactionItem):
 
         {answer}
 
-        この回答に対しての返答をしてください。
-        ただし、新たな質問はしないでください。
+        "この回答に対しての返答し、次の質問を投げてください。"
     """
 
     return await request(history, prompt)
