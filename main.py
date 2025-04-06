@@ -1,33 +1,31 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import Literal, List, TypedDict
 from src import gemini
 
 app = FastAPI()
 
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World"}
+class History(TypedDict):
+    role: Literal["user", "model"]
+    parts: List[str]
 
 
 class QuestionItem(BaseModel):
-    history: list[str]
+    history: List[History]
 
 
 @app.post("/api/question")
-def question(item: QuestionItem):
-    print(item)
+async def question(item: QuestionItem):
     history = item.history
 
-    prompt = f"""\
-        これまでの内容やユーザーの思考のジャンル・対象・ゴールなどをもとに、思考をより深めるための質問をしてください。
-    """
+    prompt = f"""これまでの内容やユーザーの思考のジャンル・対象・ゴールなどをもとに、思考をより深めるための質問をしてください。"""
 
-    return request(history, prompt)
+    return await request(history, prompt)
 
 
 class ReactionItem(BaseModel):
-    history: list[str]
+    history: List[History]
     question: str
     answer: str
 
@@ -38,23 +36,23 @@ async def reaction(item: ReactionItem):
     question = item.question
     answer = item.answer
 
-    prompt = f"""\
-        {question}
+    prompt = f"""{question}
 
-        という質問に対して、以下のような回答がありました。
+        というあなたの質問に対して、以下のような回答がありました。
 
         {answer}
 
         この回答に対しての返答をしてください。
+        ただし、新たな質問はしないでください。
     """
 
-    return request(history, prompt)
+    return await request(history, prompt)
 
 
 class evaluateItem(BaseModel):
-    history: list[str]
+    history: List[History]
     sentence: str
-    evaluate_type: list[str]
+    evaluate_type: List[str]
 
 
 @app.post("/api/evaluate")
@@ -73,12 +71,12 @@ async def evaluate(item: evaluateItem):
             ${evaluate_type}
         """
 
-    return request(history, prompt)
+    return await request(history, prompt)
 
 
-async def request(history, prompt):
-    request_dict = history + {"role": "user", "parts": [prompt]}
-    response = gemini.gemini(request_dict).text
+async def request(history: List[History], prompt: str):
+    request_dict = history + [{"role": "user", "parts": [prompt]}]
+    response = gemini.generate(request_dict)
 
     new_history = history + [
         {"role": "user", "parts": [prompt]},
@@ -90,26 +88,3 @@ async def request(history, prompt):
         "response": response,
         "history": new_history,
     }
-
-
-# 動作チェック用のコード
-def check():
-    history = [
-        {
-            "role": "system",
-            "parts": [
-                "あなたは、ユーザーの思考の整理・言語化・ブラッシュアップのサポートをするAIです。\nユーザーがより良い体験ができることを最優先に考えて生成してください。\n対話はすべて日本語で行ってください。"
-            ],
-        },
-        {
-            "role": "user",
-            "parts": [
-                "私は以下のことを言語化したいと考えています。\n\n- 言語化したい内容：企業のエントリーシートに記述する自己PR\n- 言語化のゴール：エントリーシートに書けるような文章"
-            ],
-        },
-    ]
-    question(history)
-
-
-if __name__ == "__main__":
-    print(check())
